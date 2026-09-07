@@ -1,0 +1,4 @@
+numpy>=2.0               # model code and weights
+regex>=2024.1            # BPE tokenizer
+tqdm>=4.64               # progress bar
+fire>=0.5                # CLI
