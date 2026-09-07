@@ -1,5 +1,14 @@
+# Project summary
 
-# installation
+A readable / understandable implementation of GPT-2 architecture.  
+The code is intentionally verbose and un-compacted, in order to explain all the concepts in human language.
+
+This is *inference* only (no model training). It uses GPT-2 124M weights and 1024 token context from OpenAI. No dependencies except for NumPy and regex.
+
+
+# Usage
+
+## Installation
 
 ```
 setup.bat
@@ -7,7 +16,7 @@ setup.bat
 
 Installs venv and all missing dependencies.
 
-# download model files
+## Download model files
 
 ```
 download_model_files.bat
@@ -15,13 +24,20 @@ download_model_files.bat
 
 Downloads the GPT-2 124M weights from OpenAI into `models/124M/`. Uses `curl`, which is built into Windows 10+. Only needs to be run once.
 
-# running
+## Running
 
 ```
-run.bat 
+run.bat The cat climbed onto the
 ```
 
-# about GPT architecture 
+This will output
+```
+The cat climbed onto the roof of the building and began to
+```
+
+If you omit the prompt, a built-in default is used.
+
+# About GPT architecture 
 
 GPT stands for **Generative Pre-trained Transformer**. The simplest way to think about it is:
 
@@ -37,7 +53,7 @@ The acronym meanings are:
 
 **Generative** — it generates new text.
 
-**Pre-trained** — it was pre-trained on a huge amounts of data beforehand.
+**Pre-trained** — it was pre-trained on a huge amount of data beforehand.
 
 **Transformer** — the neural-network architecture it uses (read about it below).
 
@@ -155,6 +171,7 @@ One head might learn to notice:
 
 You can imagine a bunch of tiny detectives studying the same sentence for different clues.
 
+
 ### 5. Attention happens inside Transformer blocks
 
 A GPT model is basically a huge stack of repeated building blocks.
@@ -199,6 +216,9 @@ Later layers might figure out:
 
 > “Apple refers to the technology company here, not the fruit.”
 
+Note: our model has 12 blocks, and each block has 12 attention heads.
+
+
 ### 6. There's another neural network inside each block
 
 After attention, each token passes through a **feed-forward network** (also called **MLP**).
@@ -211,11 +231,6 @@ And the MLP as:
 
 > “Think about / transform that information.”
 
-So a Transformer block is roughly:
-
-```text
-Attention → processing → Attention → processing → ...
-```
 
 ### 7. Layer normalization keeps the numbers well-behaved
 
@@ -231,16 +246,28 @@ The layer normalization happens before both attention and the feed-forward.
 
 Attention and the feed-forward network transform the token representations, but GPT does not simply replace the old representations with the new ones.
 
-Instead, it adds each part's output back to its input:
+Instead, it adds each part's output back to its input, so each block in fact is:
 
 ```text
-input ──────────────────────┐
-  ↓                        │
-layer normalization         │
-  ↓                        │
-attention                   │
-  ↓                        │
-output + original input ◀───┘
+        input
+          ↓  
+          ↓   ──────────────────────┐
+          ↓                         │
+        layer normalization         │
+          ↓                         │
+        attention                   │
+          ↓                         │
+        output + original input <───┘
+          ↓
+          ↓   ──────────────────────┐
+          ↓                         │
+        layer normalization         │
+          ↓                         │
+        feed forward                │
+          ↓                         │
+        output + original input <───┘
+          ↓
+        result
 ```
 
 This shortcut is called a **residual connection**. It lets information pass through a block directly while attention and the feed-forward network add useful changes.
@@ -322,14 +349,18 @@ Add position information
     ↓
 Transformer
 ┌─────────────────────────────┐
+│ ( normalization )           │
 │ Attention: what matters?    │
+│ ( normalization )           │
 │ Neural net: process it      │
+│ ( normalization )           │
 │ Attention: what matters?    │
+│ ( normalization )           │
 │ Neural net: process it      │
 │            ...              │
 └─────────────────────────────┘
     ↓
-Probability of next token
+Assign probabilities to ALL known tokens
     ↓
 Choose token
     ↓
@@ -398,15 +429,6 @@ Then the model takes the **values** from those words and mixes them according to
 
 So the new representation for `"her"` now contains information gathered from the words that mattered most.
 
-The core equation is:
-
-$$
-\text{Attention}(Q,K,V)
-=
-\text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V
-$$
-
-
 ```text
 QKᵀ
 ↓
@@ -471,8 +493,9 @@ And **multi-head attention** means GPT can examine many different relationships 
 
 #### Who creates the attention heads?
 
-The heads are **part of LLM model** - they are created algorithmicaly as a part of model training. 
-When GPT uses attention heads, it loads their weights from the model (pre-built at the training time) and at run time uses these weights AND the current token vectors for computing "Activations" (Q, K, V attention weights).
+The model architecture decides the layout: in our model there are exactly 12 heads per block. Model training creates weights and those weights are stored in the model file (frozen).
+At runtime, GPT loads those frozen weights, takes the runtime token values, and calculates Q, K, and V (activations).
+
 
 ### Feed-forward
 
@@ -506,6 +529,6 @@ A function called **softmax** can convert the logits into probabilities:
 logits → softmax → probabilities
 ```
 
-Our implementation does not need to calculate those probabilities because it chooses the token with the largest logit.
+NOTE: Our implementation does not need to calculate those probabilities because it always chooses the token with the largest logit.
 
 The chosen token is appended to the input, and the entire inference process repeats to produce the following token.

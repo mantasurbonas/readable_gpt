@@ -1,6 +1,10 @@
 """Run the complete educational GPT-2 text-generation pipeline."""
 
+import sys
+
 from gpt import GPT, ModelLoader, Tokenizer
+
+DEFAULT_PROMPT = "Ladies and Gentelmen, hello and welcome to my modest "
 
 
 if __name__ == "__main__":
@@ -19,7 +23,9 @@ if __name__ == "__main__":
         merge_rules=model_loader.merge_rules
     )
 
-    prompt = "Ladies and Gentelmen, hello and welcome to my modest "
+    prompt = DEFAULT_PROMPT
+    if len(sys.argv) > 1:
+        prompt = " ".join(sys.argv[1:]) 
 
     token_ids = tokenizer.encode(prompt)
 
