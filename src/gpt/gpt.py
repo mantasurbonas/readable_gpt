@@ -22,22 +22,18 @@ class GPT:
         self._final_layer_norm = final_layer_norm
         self._context_size = context_size
 
-        # Build each block once. The TransformerBlock holds MultiHeadAttention
-        # and FeedForward objects that carry only frozen weight matrices from the
-        # trained model. Nothing in these objects changes between predictions.
+        self._logits_calculator = LogitsCalculator(token_embeddings)
+
+        # Build each block once. 
+        # The TransformerBlock holds MultiHeadAttention and FeedForward objects 
+        #   that carry only frozen weight matrices from the trained model. 
+        # Nothing in these objects changes between predictions.
         self._blocks = []
         for block_parameters in blocks:
             self._blocks.append(TransformerBlock(block_parameters, attention_head_count))
 
-        # LogitsCalculator also holds only a reference to the frozen weight table.
-        self._logits_calculator = LogitsCalculator(token_embeddings)
-
     def predict_next_token(self, token_ids):
-        if not token_ids:
-            raise ValueError("token_ids must not be empty.")
-
-        if len(token_ids) > self._context_size:
-            raise ValueError(f"Context length {len(token_ids)} exceeds model limit context_size={self._context_size}.")
+        self._assert_token_ids_valid(token_ids)
 
         token_count = len(token_ids)
 
@@ -63,4 +59,13 @@ class GPT:
         # Apply the final normalization before converting to vocabulary scores.
         normalized_representations = normalize_layer(token_representations, self._final_layer_norm)
 
+        # Now the logits_calculator can locate the most suitable token from all the known embeddings
         return self._logits_calculator.find_highest_score_token_id(normalized_representations)
+
+
+    def _assert_token_ids_valid(self, token_ids):
+        if not token_ids:
+            raise ValueError("token_ids must not be empty.")
+
+        if len(token_ids) > self._context_size:
+            raise ValueError(f"Context length {len(token_ids)} exceeds model limit context_size={self._context_size}.")

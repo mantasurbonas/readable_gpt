@@ -493,7 +493,7 @@ And **multi-head attention** means GPT can examine many different relationships 
 
 #### Who creates the attention heads?
 
-The model architecture decides the layout: in our model there are exactly 12 heads per block. Model training creates weights and those weights are stored in the model file (frozen).
+The model architecture decides the layout: in our model there are exactly 12 heads per block. Model training creates weights for each head in each block, and those weights are stored in the model file (frozen).
 At runtime, GPT loads those frozen weights, takes the runtime token values, and calculates Q, K, and V (activations).
 
 

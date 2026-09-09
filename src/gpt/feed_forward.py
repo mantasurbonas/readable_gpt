@@ -7,9 +7,10 @@ class FeedForward:
     """Each token thinks about what it collected, on its own.
 
     Attention gathers information from other tokens. However this part does NOT look
-    at other tokens at all - every row is processed independently. It
-    stretches each token's 768 numbers out to 3072, bends them with an
-    activation function, then squeezes them back down to 768.
+      at other tokens at all - every row is processed independently. 
+    It stretches each token's 768 numbers out to 3072, 
+       bends them with an activation function, 
+       then squeezes them back down to 768.
     """
 
     def __init__(self, block):
