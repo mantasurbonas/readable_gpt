@@ -37,7 +37,7 @@ The cat climbed onto the roof of the building and began to
 
 If you omit the prompt, a built-in default is used.
 
-# About GPT architecture 
+# About GPT architecture
 
 GPT stands for **Generative Pre-trained Transformer**. The simplest way to think about it is:
 
@@ -57,6 +57,7 @@ The acronym meanings are:
 
 **Transformer** — the neural-network architecture it uses (read about it below).
 
+We will first follow a sentence through the entire model. After that overview, we will return to the individual parts and examine how they work.
 
 ### 1. Your sentence gets broken into tokens
 
@@ -84,7 +85,7 @@ So internally, GPT sees something more like:
 
 ### 2. Tokens become vectors
 
-So GPT turns every token into a long list of numbers called an **embedding**.
+GPT turns every token into a long list of numbers called an **embedding**.
 
 You can imagine an embedding as a location on a giant “meaning map.”
 
@@ -130,152 +131,51 @@ token meaning + token position
 
 for every token.
 
-### 4. The most important part: Attention
+### 4. The vectors pass through Transformer blocks
 
-This is the key idea behind Transformers.
+A GPT model contains a stack of repeated structures called **Transformer blocks**.
 
-Suppose the sentence is:
+The Python code defines the structure of a block. The pre-trained model files provide the learned numbers, called **weights**, that each block uses.
 
-> “Sarah dropped the glass because **it** was slippery.”
+Every block has the same structure, but it has its own weights. This means that the blocks perform the same kinds of steps, while their different learned weights let them detect and transform different patterns.
 
-When GPT processes the word **“it”**, it needs to figure out what “it” refers to.
-
-Attention lets the model basically ask:
-
-> “Which earlier words should I pay attention to?”
-
-It might give higher importance to:
+The first block receives the vectors containing token meaning and position. It transforms those vectors and passes its output to the second block. The second block transforms that output and passes it to the third, and so on:
 
 ```text
-glass  ██████████
-Sarah  ██
-dropped ███
-because █
+token meaning + position
+            ↓
+    Transformer block 1
+            ↓
+    Transformer block 2
+            ↓
+    Transformer block 3
+            ↓
+           ...
+            ↓
+    final token representations
 ```
 
-The model learns these relationships automatically.
+Our GPT-2 124M model has **12 Transformer blocks**.
 
-This mechanism is called **self-attention**.
+Inside each block, attention helps tokens gather relevant information from other tokens, and a feed-forward network processes that information. Layer normalization and residual connections help these transformations work reliably.
 
-And GPT doesn't have just one attention system. It has many **attention heads** working at the same time.
+We will examine all four of those parts later. For now, the important idea is:
 
-One head might learn to notice:
+> **A Transformer is a stack of blocks that repeatedly improves each token's representation using the context around it.**
 
-* pronouns
-* grammar
-* nearby words
-* names
-* cause and effect
-* quotations
-* code structure
+As information passes through the blocks, the model can build richer representations of the context.
 
-You can imagine a bunch of tiny detectives studying the same sentence for different clues.
-
-
-### 5. Attention happens inside Transformer blocks
-
-A GPT model is basically a huge stack of repeated building blocks.
-
-Very simplified:
-
-```text
-Input tokens
-     ↓
-Embeddings
-     ↓
-┌────────────────────┐
-│ Transformer Block  │
-│                    │
-│  Self-Attention    │
-│        ↓           │
-│ Neural Network     │
-└────────────────────┘
-     ↓
-┌────────────────────┐
-│ Transformer Block  │
-└────────────────────┘
-     ↓
-┌────────────────────┐
-│ Transformer Block  │
-└────────────────────┘
-     ↓
-    ...
-     ↓
-Next-token prediction
-```
-
-Large models can contain **dozens or hundreds of these layers**.
-
-As information passes through them, the model's understanding of the context becomes richer.
-
-For example, early layers might notice:
+For example, early blocks might notice:
 
 > “Apple is a word.”
 
-Later layers might figure out:
+Later blocks might figure out:
 
 > “Apple refers to the technology company here, not the fruit.”
 
-Note: our model has 12 blocks, and each block has 12 attention heads.
+### 5. GPT predicts the next token
 
-
-### 6. There's another neural network inside each block
-
-After attention, each token passes through a **feed-forward network** (also called **MLP**).
-
-You can think of attention as:
-
-> “Find the relevant information.”
-
-And the MLP as:
-
-> “Think about / transform that information.”
-
-
-### 7. Layer normalization keeps the numbers well-behaved
-
-As a token representation moves through the model, its numbers can grow, shrink, or become unevenly distributed.
-
-**Layer normalization** rescales those numbers into a more consistent range. This helps each part of the Transformer receive values that are easier to work with.
-
-Layer normalization does not mix information between different tokens. It normalizes each token's vector independently, then applies a learned scale and offset.
-
-The layer normalization happens before both attention and the feed-forward.
-
-### 8. Residual connections preserve information
-
-Attention and the feed-forward network transform the token representations, but GPT does not simply replace the old representations with the new ones.
-
-Instead, it adds each part's output back to its input, so each block in fact is:
-
-```text
-        input
-          ↓  
-          ↓   ──────────────────────┐
-          ↓                         │
-        layer normalization         │
-          ↓                         │
-        attention                   │
-          ↓                         │
-        output + original input <───┘
-          ↓
-          ↓   ──────────────────────┐
-          ↓                         │
-        layer normalization         │
-          ↓                         │
-        feed forward                │
-          ↓                         │
-        output + original input <───┘
-          ↓
-        result
-```
-
-This shortcut is called a **residual connection**. It lets information pass through a block directly while attention and the feed-forward network add useful changes.
-
-
-### 9. GPT predicts the next token
-
-After all the Transformer layers, GPT produces scores that can be turned into probabilities.
+After all the Transformer blocks, GPT produces a score for every token it knows. Those scores can be turned into probabilities.
 
 For:
 
@@ -310,33 +210,9 @@ predict → add token → predict → add token → predict...
 
 extremely quickly.
 
-#### GPT may only look backward
+### 6. The whole journey at a glance
 
-Attention is not allowed to read the future.
-
-When the model is working on a token, it can use that token and everything before it. Tokens to the right are hidden. This rule is called a **causal mask** (“causal” here just means “causes can only come from the past”).
-
-Take:
-```
-> The capital of France is Paris
-```
-
-While the model is at **is**, the allowed context is:
-```text
-The  capital  of  France  is  [Paris is hidden]
-```
-
-It must guess the next token from that prefix alone. That is what makes GPT a next-token machine: it cannot peek at the answer.
-
-### Why is it called “Transformer”?
-
-Before Transformers, many language models processed text more like reading a sentence **one word at a time**.
-
-Transformers introduced multi-head attention, which lets the model examine relationships between many tokens much more efficiently.
-
-That architecture turned out to scale extremely well.
-
-So the whole process can be pictured like this:
+The complete process looks like this:
 
 ```text
 Your message
@@ -347,45 +223,100 @@ Turn tokens into vectors
     ↓
 Add position information
     ↓
-Transformer
 ┌─────────────────────────────┐
-│ ( normalization )           │
-│ Attention: what matters?    │
-│ ( normalization )           │
-│ Neural net: process it      │
-│ ( normalization )           │
-│ Attention: what matters?    │
-│ ( normalization )           │
-│ Neural net: process it      │
+│ Transformer block 1         │
+│ Transformer block 2         │
+│ Transformer block 3         │
 │            ...              │
 └─────────────────────────────┘
     ↓
-Assign probabilities to ALL known tokens
+Assign a score to every known token
     ↓
-Choose token
+Choose a token
     ↓
-Repeat
+Add it to the message and repeat
     ↓
 Response
 ```
 
-### More details: Attention Heads
+That is the entire GPT process at a high level. The following sections take a closer look at what happens inside the blocks and how the final token scores are produced.
 
-An **attention head** is like one specialized “relationship detector” inside a Transformer.
+### 7. More details
 
-Its job is to look at each token and ask: "Which other tokens matter to me right now, and how much?"
+#### 7.1 Inside one Transformer block
+
+Each Transformer block performs the same sequence of operations:
+
+```text
+        input
+          ↓
+          ↓   ──────────────────────┐
+          ↓                         │
+        layer normalization         │
+          ↓                         │
+        attention                   │
+          ↓                         │
+        output + original input <───┘
+          ↓
+          ↓   ──────────────────────┐
+          ↓                         │
+        layer normalization         │
+          ↓                         │
+        feed-forward network        │
+          ↓                         │
+        output + original input <───┘
+          ↓
+        result
+```
+
+The result becomes the input to the next Transformer block. We will now examine each part separately.
+
+#### 7.2 Attention and attention heads
+
+Attention is the key idea behind Transformers.
 
 Suppose the sentence is:
 
-> “The dog that chased the cats was tired.”
+> “Sarah dropped the glass because **it** was slippery.”
 
-When processing **“was”**, one attention head might learn that the important word is **“dog”**, because “dog” is the subject.
+When GPT processes the word **“it”**, it needs to figure out what “it” refers to.
 
-Another head might focus on nearby grammar. Another might track pronouns. Another might detect quotation structure, code syntax, or long-distance relationships.
+Attention lets the model basically ask:
 
-So instead of having one attention mechanism, GPT uses **multiple attention heads in parallel**.
+> “Which earlier words should I pay attention to?”
 
-### How one attention head works
+It might give higher importance to:
+
+```text
+glass   ██████████
+Sarah   ██
+dropped ███
+because █
+```
+
+The model learns these relationships automatically.
+
+This mechanism is called **self-attention** because the tokens gather information from other tokens in the same piece of text.
+
+GPT doesn't have just one attention system. Each block has multiple **attention heads** working at the same time. Our model has 12 attention heads in every block.
+
+An attention head is like one specialized “relationship detector.” Its job is to look at each token and ask:
+
+> “Which other tokens matter to me right now, and how much?”
+
+One head might learn to notice:
+
+* pronouns
+* grammar
+* nearby words
+* names
+* cause and effect
+* quotations
+* code structure
+
+You can imagine a group of tiny detectives studying the same sentence for different clues.
+
+##### How one attention head works
 
 For every token, the model creates three vectors:
 
@@ -443,7 +374,7 @@ softmax
 "Collect information from those tokens"
 ```
 
-#### Why have multiple heads?
+##### Why have multiple heads?
 
 Because one single attention pattern isn't enough.
 
@@ -483,7 +414,7 @@ Sentence → tokens ──┼→ Head 2 → references
                  richer representation
 ```
 
-Some attention heads can be fairly interpretable, while others do complicated things that aren't easy to describe in human language. 
+Some attention heads can be fairly interpretable, while others do complicated things that aren't easy to describe in human language.
 
 The cleanest mental model is:
 
@@ -491,17 +422,49 @@ The cleanest mental model is:
 
 And **multi-head attention** means GPT can examine many different relationships at the same time.
 
-#### Who creates the attention heads?
+##### Who creates the attention heads?
 
-The model architecture decides the layout: in our model there are exactly 12 heads per block. Model training creates weights for each head in each block, and those weights are stored in the model file (frozen).
-At runtime, GPT loads those frozen weights, takes the runtime token values, and calculates Q, K, and V (activations).
+The model architecture decides the layout: in our model there are exactly 12 heads per block.
 
+During training, the model learns the weights used by each head in each block. Those weights are saved in the model files.
 
-### Feed-forward
+At runtime, our Python code loads the frozen weights. It then uses the current token representations and those weights to calculate Q, K, and V. These newly calculated values are called **activations**. The weights stay the same from one prediction to the next, but the activations depend on the input text.
 
-The feed-forward network is also **part of the model**, and its actual activations/results are also computed at runtime.
+#### 7.3 GPT may only look backward
 
-A typical Transformer feed-forward block looks roughly like:
+GPT's attention is not allowed to read the future.
+
+When the model is working on a token, it can use that token and everything before it. Tokens to the right are hidden. This rule is called a **causal mask** (“causal” here just means “causes can only come from the past”).
+
+Take:
+
+```text
+The capital of France is Paris
+```
+
+While the model is at **is**, the allowed context is:
+
+```text
+The  capital  of  France  is  [Paris is hidden]
+```
+
+It must guess the next token from that prefix alone. That is what makes GPT a next-token machine: it cannot peek at the answer.
+
+#### 7.4 Feed-forward network
+
+After attention, each token passes through a **feed-forward network** (also called an **MLP**).
+
+You can think of attention as:
+
+> “Find the relevant information.”
+
+And the feed-forward network as:
+
+> “Think about / transform that information.”
+
+The feed-forward network is part of the model, and each block has its own learned feed-forward weights. Its actual activations and results are calculated at runtime from the current token representations.
+
+A typical Transformer feed-forward network looks roughly like:
 
 ```text
 input
@@ -515,9 +478,39 @@ Linear layer 2
 output
 ```
 
-For GPT-2 124M, each token representation contains `768` numbers. Its feed-forward network temporarily expands that representation to `3072` numbers.
+For GPT-2 124M, each token representation contains `768` numbers. Its feed-forward network temporarily expands that representation to `3072` numbers before reducing it to `768` numbers again.
 
-### Logits: scores before choosing the next token
+Unlike attention, the feed-forward network processes each token separately. Information is shared between tokens by attention; the feed-forward network then transforms the information held by each token.
+
+#### 7.5 Layer normalization keeps the numbers well-behaved
+
+As a token representation moves through the model, its numbers can grow, shrink, or become unevenly distributed.
+
+**Layer normalization** rescales those numbers into a more consistent range. This helps each part of the Transformer receive values that are easier to work with.
+
+Layer normalization does not mix information between different tokens. It normalizes each token's vector independently, then applies a learned scale and offset.
+
+As the block map showed, layer normalization happens before both attention and the feed-forward network. There is also one final layer normalization after the last Transformer block.
+
+#### 7.6 Residual connections preserve information
+
+Attention and the feed-forward network transform the token representations, but GPT does not simply replace the old representations with the new ones.
+
+Instead, it adds each part's output back to its input. This shortcut is called a **residual connection**.
+
+There are two residual connections in each block:
+
+```text
+attention output + input to attention
+
+feed-forward output + input to feed-forward
+```
+
+Residual connections let information pass through a block directly while attention and the feed-forward network add useful changes.
+
+Another way to think about this is that each part describes an **update** to the existing representation instead of having to rebuild the entire representation from nothing.
+
+#### 7.7 Logits: scores before choosing the next token
 
 After the final Transformer block and layer normalization, GPT turns the last token's `768`-number representation into one score for every token in its vocabulary.
 
@@ -529,6 +522,16 @@ A function called **softmax** can convert the logits into probabilities:
 logits → softmax → probabilities
 ```
 
-NOTE: Our implementation does not need to calculate those probabilities because it always chooses the token with the largest logit.
+Our implementation does not need to calculate those probabilities because it always chooses the token with the largest logit.
 
 The chosen token is appended to the input, and the entire inference process repeats to produce the following token.
+
+#### 7.8 Why is it called “Transformer”?
+
+Before Transformers, many language models processed text more like reading a sentence **one word at a time**.
+
+Transformers introduced multi-head attention, which lets the model examine relationships between many tokens much more efficiently.
+
+The architecture repeatedly **transforms** each token's representation. A token begins with a general meaning and a position. As it passes through the blocks, it gathers context and becomes a richer representation of what that token means in this particular text.
+
+That architecture turned out to scale extremely well.
