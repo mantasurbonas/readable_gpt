@@ -13,7 +13,9 @@ class FeedForward:
        then squeezes them back down to 768.
     """
 
-    def __init__(self, block):
+    def __init__(self, block, block_index, tracer):
+        self._block_index = block_index
+        self._tracer = tracer
         self._input_projection = block.feed_forward_input_projection
         self._output_projection = block.feed_forward_output_projection
 

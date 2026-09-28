@@ -11,9 +11,11 @@ from utils.math_utils import linear, softmax
 class SingleHeadAttention:
     """One head: let every token collect information from the tokens it cares about."""
 
-    def __init__(self, head_size, head_number):
+    def __init__(self, head_size, head_number, block_index, tracer):
         self._head_size   = head_size
         self._head_number = head_number
+        self._block_index = block_index
+        self._tracer      = tracer
 
     def calculate(self, projected_q_k_v, token_count):
         """For each token, gather useful information from itself and earlier tokens.
@@ -106,7 +108,9 @@ class SingleHeadAttention:
 class MultiHeadAttention:
     """Let every head study the same sentence, then combine what they found."""
 
-    def __init__(self, block, head_count):
+    def __init__(self, block, head_count, block_index, tracer):
+        self._block_index       = block_index
+        self._tracer            = tracer
         self._qkv_projection    = block.qkv_projection
         self._output_projection = block.attention_output_projection
 
@@ -117,7 +121,9 @@ class MultiHeadAttention:
 
         self._heads = []
         for head_number in range(head_count):
-            self._heads.append(SingleHeadAttention(head_size, head_number))
+            self._heads.append(
+                SingleHeadAttention(head_size, head_number, block_index, tracer)
+            )
 
     def calculate(self, token_representations):
         """Run all attention heads and merge their results."""

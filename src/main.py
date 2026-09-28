@@ -3,6 +3,7 @@
 import sys
 
 from gpt import GPT, ModelLoader, Tokenizer
+from utils.tracer import Tracer
 
 DEFAULT_PROMPT = "Ladies and Gentelmen, hello and welcome to my modest "
 
@@ -29,6 +30,9 @@ if __name__ == "__main__":
 
     token_ids = tokenizer.encode(prompt)
 
+    tracer = Tracer()
+    tracer.off() # change to on() to trace the algorithm
+
     gpt = GPT(
         token_embeddings=model_loader.token_embeddings,
         position_embeddings=model_loader.position_embeddings,
@@ -36,9 +40,10 @@ if __name__ == "__main__":
         final_layer_norm=model_loader.final_layer_norm,
         attention_head_count=model_loader.attention_head_count,
         context_size=model_loader.context_size,
+        tracer=tracer,
     )
 
-    for _ in range(7):
+    for _ in range(1):
         next_token = gpt.predict_next_token(token_ids)
         token_ids.append(next_token)
         print(".", end="", flush=True)

@@ -14,11 +14,19 @@ class TransformerBlock:
     are new on each call.
     """
 
-    def __init__(self, block_parameters, attention_head_count):
+    def __init__(self, block_parameters, attention_head_count, block_index, tracer):
+        self._block_index = block_index
+        self._tracer = tracer
+
         # These two objects hold only frozen weight matrices from the trained model.
         # They are built once here, not on every call to calculate().
-        self._attention = MultiHeadAttention(block_parameters, attention_head_count)
-        self._feed_forward = FeedForward(block_parameters)
+        self._attention = MultiHeadAttention(
+            block_parameters,
+            attention_head_count,
+            block_index,
+            tracer,
+        )
+        self._feed_forward = FeedForward(block_parameters, block_index, tracer)
 
         # Layer-norm parameters are also frozen weight tensors (a learned scale
         # and offset vector for each of the two normalizations in this block).
@@ -48,11 +56,11 @@ class TransformerBlock:
           ↓
         result
         """
-
         # Normalize, attend, then add the result back to the input (residual connection).
         normalized_for_attention = normalize_layer(token_representations, self._attention_norm)
         attention_result = self._attention.calculate(normalized_for_attention)
         after_attention = token_representations + attention_result
+        
 
         # Normalize, process through the feed-forward network, then add back (residual).
         normalized_for_feed_forward = normalize_layer(after_attention, self._feed_forward_norm)

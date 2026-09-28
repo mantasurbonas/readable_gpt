@@ -11,14 +11,11 @@ class LogitsCalculator:
     every embedding in the vocabulary says how well each word fits.
     """
 
-    def __init__(self, token_embeddings):
+    def __init__(self, token_embeddings, tracer):
         self._token_embeddings = token_embeddings
+        self._tracer = tracer
 
-    def find_highest_score_token_id(self, transformer_results):
-        # Take only the last row — only the final token's representation is used
-        # to predict what comes next; all earlier rows are discarded here.
-        last_token_representation = transformer_results[-1]  # (768,)
-
+    def find_most_suitable_token_id(self, last_token_representation, source_token_ids):
         # Dot the 768-number representation against every row in the vocabulary table.
         # `.T` transposes token_embeddings from (50257, 768) to (768, 50257) so that
         # (768,) @ (768, 50257) produces one score per vocabulary entry.
@@ -26,6 +23,6 @@ class LogitsCalculator:
 
         # np.argmax returns the *position* (index) of the largest value, not the
         # value itself — that position is the token id with the highest score.
-        best_token_id = np.argmax(logits)
+        best_token_id = int(np.argmax(logits))
 
-        return int(best_token_id)
+        return best_token_id

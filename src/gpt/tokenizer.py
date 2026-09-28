@@ -41,6 +41,10 @@ class Tokenizer:
 
         return token_ids
 
+    def decode_token(self, token_id):
+        """Turn one token identifier back into its text piece."""
+        return self.decode([token_id])
+
     def decode(self, token_ids):
         """Turn token identifiers back into text."""
         byte_encoded_text = "".join(
