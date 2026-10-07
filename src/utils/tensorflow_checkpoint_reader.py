@@ -53,6 +53,7 @@ TensorShapeProto / Dim
 import os
 import re
 import struct
+from typing import NamedTuple
 
 import numpy as np
 
@@ -75,6 +76,16 @@ _DTYPE_MAP = {
     19: np.complex64, # DT_COMPLEX64
     22: np.complex128,# DT_COMPLEX128
 }
+
+
+class VariableLocation(NamedTuple):
+    """Where one variable's raw bytes are stored, and how to interpret them."""
+
+    dtype_id: int
+    shape: list
+    shard_id: int
+    offset: int
+    size: int
 
 
 class _IndexFile:
@@ -313,8 +324,8 @@ class TensorflowCheckpointReader:
                 for name, raw in idx.items()
             ]
 
-    def load_variable(self, name: str) -> np.ndarray:
-        """Load a single variable from the checkpoint and return it as ndarray."""
+    def locate_variable(self, name: str) -> VariableLocation:
+        """Say where the variable's bytes live. Raises KeyError if there is no such variable."""
         with _IndexFile(self.checkpoint_path + ".index") as idx:
             raw_entry = idx.get(name)
         if raw_entry is None:
@@ -323,9 +334,10 @@ class TensorflowCheckpointReader:
             )
 
         dtype_id, shape, shard_id, offset, size = self._parse_bundle_entry(raw_entry)
-        np_dtype = _DTYPE_MAP.get(dtype_id, np.float32)
+        return VariableLocation(dtype_id, shape, shard_id, offset, size)
 
-        # Locate the correct data shard (raw binary file)
+    def data_shard_path(self, shard_id: int) -> str:
+        """Return the path of the raw binary file that holds the given shard."""
         ckpt_dir  = os.path.dirname(self.checkpoint_path) or "."
         base_name = os.path.basename(self.checkpoint_path)
         shards = sorted(
@@ -335,14 +347,19 @@ class TensorflowCheckpointReader:
             raise FileNotFoundError(
                 f"Shard {shard_id} not found; available shards: {shards}"
             )
-        data_path = os.path.join(ckpt_dir, shards[shard_id])
+        return os.path.join(ckpt_dir, shards[shard_id])
+
+    def load_variable(self, name: str) -> np.ndarray:
+        """Load a single variable from the checkpoint and return it as ndarray."""
+        location = self.locate_variable(name)
+        np_dtype = _DTYPE_MAP.get(location.dtype_id, np.float32)
 
         # Read raw bytes from the shard at the recorded offset
-        with open(data_path, "rb") as f:
-            f.seek(offset)
-            raw_bytes = f.read(size)
+        with open(self.data_shard_path(location.shard_id), "rb") as f:
+            f.seek(location.offset)
+            raw_bytes = f.read(location.size)
 
         arr = np.frombuffer(raw_bytes, dtype=np_dtype)
-        if shape:
-            arr = arr.reshape(shape)
+        if location.shape:
+            arr = arr.reshape(location.shape)
         return arr.copy()  # make writable
